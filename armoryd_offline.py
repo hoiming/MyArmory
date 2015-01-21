@@ -2420,95 +2420,6 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
 
       return self.retStr
 
-   #############################################################################
-   # Pull in a signed Tx and get the raw Tx hex data to broadcast. This call
-   # works with a regular signed Tx and a signed lockbox Tx if there are already
-   # enough signatures.
-   @catchErrsForJSON
-   def jsonrpc_broadcastTransaction(self, txASCIIFile):
-      """
-      DESCRIPTION:
-      Get a signed Tx from a file and get the raw hex data to broadcast.
-      PARAMETERS:
-      txASCIIFile - The path to a file with an signed transacion.
-      RETURN:
-      A hex string of the raw transaction data to be transmitted.
-      """
-
-      ustxObj = None
-      enoughSigs = False
-      sigStatus = None
-      sigsValid = False
-      ustxReadable = False
-      allData = ''
-      finalTx = None
-      self.retStr = 'The transaction data cannot be broadcast'
-
-      # Read in the signed Tx data. HANDLE UNREADABLE FILE!!!
-      with open(txASCIIFile, 'r') as lbTxData:
-         allData = lbTxData.read()
-
-      # Try to decipher the Tx and make sure it's actually signed.
-      try:
-         ustxObj = UnsignedTransaction().unserializeAscii(allData)
-         sigStatus = ustxObj.evaluateSigningStatus()
-         enoughSigs = sigStatus.canBroadcast
-         sigsValid = ustxObj.verifySigsAllInputs()
-         ustxReadable = True
-      except BadAddressError:
-         LOGERROR('This transaction contains inconsistent information. This ' \
-                  'is probably not your fault...')
-         ustxObj = None
-         ustxReadable = False
-      except NetworkIDError:
-         LOGERROR('This transaction is actually for a different network! Did' \
-                  'you load the correct transaction?')
-         ustxObj = None
-         ustxReadable = False
-      except (UnserializeError, IndexError, ValueError):
-         LOGERROR('This transaction can\'t be read.')
-         ustxObj = None
-         ustxReadable = False
-
-      # If we have a signed Tx object, let's make sure it's actually usable.
-      if ustxObj:
-         if not enoughSigs or not sigsValid or not ustxReadable:
-            if not ustxReadable:
-               if len(allData) > 0:
-                  LOGERROR('The Tx data was read but was corrupt.')
-               else:
-                  LOGERROR('The Tx data couldn\'t be read.')
-            if not sigsValid:
-                  LOGERROR('The Tx data doesn\'t have valid signatures.')
-            if not enoughSigs:
-                  LOGERROR('The Tx data doesn\'t have enough signatures.')
-         else:
-            finalTx = ustxObj.getBroadcastTxIfReady()
-            if finalTx:
-               newTxHash = finalTx.getHash()
-               LOGINFO('Tx %s may be broadcast - %s' % \
-                       (binary_to_hex(newTxHash), \
-                        binary_to_hex(finalTx.serialize())))
-               self.retStr = binary_to_hex(finalTx.serialize())
-               finalPyTx = PyTx().unserialize(hex_to_binary(self.retStr))
-               if TheBDM is None:
-                   print 'TheBDM is null'
-               else:
-                   print 'TheBDM is NOT null'
-
-               if rpc_server is None:
-                    print 'rpc_server is null'
-               else:
-                    print 'rpc_server is NOT null'
-               if rpc_server.NetworkingFactory is None:
-                   print   'rpc_server.NetworkingFactory is  null'
-               else:
-                   print   'rpc_server.NetworkingFactory is  NOT null'
-               rpc_server.NetworkingFactory.sendTx(finalPyTx)
-
-            else:
-               LOGERROR('The Tx data isn\'t ready to be broadcast')
-      return self.retStr
 
    ##################################
    # Take the ASCII representation of an unsigned Tx (i.e., the data that is
@@ -2578,6 +2489,84 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
 
       return retDict
 
+   @catchErrsForJSON
+   def jsonrpc_signasciitransactiontofile(self, txASCIIFileIn, txASCIIFileOut,wltPasswd=None):
+       """
+       DESCRIPTION:
+       Sign an unsigned transaction and get the signed ASCII data.
+       PARAMETERS:
+       unsignedTxASCII - An ASCII-formatted unsigned transaction, like the one
+                         used by Armory for offline transactions.
+       wltPasswd - (Default=None) If needed, the current wallet's password.
+       RETURN:
+       A dictionary containing a string with the ASCII-formatted signed
+       transaction or, if the signing failed, a string indicating failure.
+       """
+       print txASCIIFileIn
+       print txASCIIFileOut
+       print wltPasswd
+       unSignedTxASCII=''
+       with open(txASCIIFileIn, 'r') as lbTxData:
+         unSignedTxASCII = lbTxData.read()
+       print unSignedTxASCII
+
+
+       retDict = {}
+
+
+       print unSignedTxASCII
+       print wltPasswd
+       ##################
+       retDict = {}
+
+       # As a courtesy to people who use them, we'll strip quotation marks
+       # from the beginning and/or end of the string.
+       unsignedTxASCII = str(unSignedTxASCII)
+       if unsignedTxASCII[0] == '\"':
+          unsignedTxASCII = unsignedTxASCII[1:]
+       if unsignedTxASCII[-1] == '\"':
+          unsignedTxASCII = unsignedTxASCII[:-1]
+
+       unsignedTx = UnsignedTransaction().unserializeAscii(unsignedTxASCII)
+
+
+       # If the wallet is encrypted, attempt to decrypt it.
+       decrypted = False
+       if self.curWlt.useEncryption:
+          try:
+             passwd = SecureBinaryData(str(wltPasswd))
+             if not self.curWlt.verifyPassphrase(passwd):
+                LOGERROR('Passphrase was incorrect! Wallet could not be ' \
+                         'unlocked. Signed transaction will not be created.')
+                retDict['Error'] = 'Passphrase was incorrect! Wallet could ' \
+                                   'not be unlocked. Signed transaction will ' \
+                                   'not be created.'
+             else:
+                self.curWlt.unlock(securePassphrase=passwd)
+                decrypted = True
+          finally:
+             passwd.destroy()
+
+       # If the wallet's unencrypted, we want to continue.
+       else:
+          decrypted = True
+
+       # Create the signed transaction and verify it.
+       if decrypted:
+          unsignedTx = self.curWlt.signUnsignedTx(unsignedTx)
+          self.curWlt.advanceHighestIndex()
+          if not unsignedTx.verifySigsAllInputs():
+             LOGERROR('Error signing transaction. The correct wallet was ' \
+                      'probably not used.')
+             retDict['Error'] = 'Error signing transaction. The correct ' \
+                                'wallet was probably not used.'
+          else:
+             # The signed Tx is valid.
+             retDict['SignedTx'] = unsignedTx.serializeAscii()
+             with open(txASCIIFileOut, 'w') as signedTXOutWriter:
+                 signedTXOutWriter.write(retDict['SignedTx'])
+
+       return 'Sign Transaction message successful'
 
    #############################################################################
    # Register some code to be run when we encounter a zero-conf Tx or a
