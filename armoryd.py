@@ -1601,6 +1601,18 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
 
       return out
 
+   @catchErrsForJSON
+   def jsonrpc_checkaddrstrvalid(self, address):
+
+      """
+       :param address:
+       :return: True if address is valid
+      """
+
+      if not checkAddrStrValid(address):
+         return 'False'
+      else:
+         return 'True'
 
    #############################################################################
    @catchErrsForJSON
