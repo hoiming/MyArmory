@@ -2585,7 +2585,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
                LOGINFO('Tx %s may be broadcast - %s' % \
                        (binary_to_hex(newTxHash), \
                         binary_to_hex(finalTx.serialize())))
-               self.retStr = binary_to_hex(finalTx.serialize())
+               self.retStr = finalTx.getHashHex(BIGENDIAN)
                finalPyTx = PyTx().unserialize(hex_to_binary(self.retStr))
                if TheBDM is None:
                    LOGERROR('TheBDM is null')
@@ -2598,7 +2598,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
 
             else:
                LOGERROR('The Tx data isn\'t ready to be broadcast')
-      return "The Transaction data is successfully broadcast."
+      return  self.retStr
    ##################################
    # Take the ASCII representation of an unsigned Tx (i.e., the data that is
    # signed by Armory's offline Tx functionality) and returns an ASCII
@@ -2665,8 +2665,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
             # The signed Tx is valid.
             retDict['SignedTx'] = unsignedTx.serializeAscii()
 
-      return retDict.get("SignedTx", "Error signing transaction. The correct"\
-            " was probably not used.")
+      return retDict
 
 
    #############################################################################

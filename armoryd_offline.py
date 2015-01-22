@@ -2651,8 +2651,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
             # The signed Tx is valid.
             retDict['SignedTx'] = unsignedTx.serializeAscii()
 
-         return retDict.get("SignedTx", "Error signing transaction. The correct"\
-            " was probably not used.")
+         return retDict
 
    @catchErrsForJSON
    def jsonrpc_signasciitransactiontofile(self, txASCIIFileIn, txASCIIFileOut,wltPasswd=None):
