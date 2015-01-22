@@ -2437,7 +2437,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
    # works with a regular signed Tx and a signed lockbox Tx if there are already
    # enough signatures.
    @catchErrsForJSON
-   def jsonrpc_broadcastTransaction(self, txASCIIFile):
+   def jsonrpc_broadcastTransactionWithFile(self, txASCIIFile):
       """
       DESCRIPTION:
       Get a signed Tx from a file and get the raw hex data to broadcast.
@@ -2522,6 +2522,83 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
                LOGERROR('The Tx data isn\'t ready to be broadcast')
       return self.retStr
 
+   @catchErrsForJSON
+   def jsonrpc_broadcastTransaction(self, txASCII):
+      """
+      DESCRIPTION:
+      Get a signed Tx from a file and get the raw hex data to broadcast.
+      PARAMETERS:
+      txASCIIFile - The path to a file with an signed transacion.
+      RETURN:
+      A hex string of the raw transaction data to be transmitted.
+      """
+
+      ustxObj = None
+      enoughSigs = False
+      sigStatus = None
+      sigsValid = False
+      ustxReadable = False
+      allData = ''
+      finalTx = None
+      self.retStr = 'The transaction data cannot be broadcast'
+
+      allData = txASCII
+
+      # Try to decipher the Tx and make sure it's actually signed.
+      try:
+         ustxObj = UnsignedTransaction().unserializeAscii(allData)
+         sigStatus = ustxObj.evaluateSigningStatus()
+         enoughSigs = sigStatus.canBroadcast
+         sigsValid = ustxObj.verifySigsAllInputs()
+         ustxReadable = True
+      except BadAddressError:
+         LOGERROR('This transaction contains inconsistent information. This ' \
+                  'is probably not your fault...')
+         ustxObj = None
+         ustxReadable = False
+      except NetworkIDError:
+         LOGERROR('This transaction is actually for a different network! Did' \
+                  'you load the correct transaction?')
+         ustxObj = None
+         ustxReadable = False
+      except (UnserializeError, IndexError, ValueError):
+         LOGERROR('This transaction can\'t be read.')
+         ustxObj = None
+         ustxReadable = False
+
+      # If we have a signed Tx object, let's make sure it's actually usable.
+      if ustxObj:
+         if not enoughSigs or not sigsValid or not ustxReadable:
+            if not ustxReadable:
+               if len(allData) > 0:
+                  LOGERROR('The Tx data was read but was corrupt.')
+               else:
+                  LOGERROR('The Tx data couldn\'t be read.')
+            if not sigsValid:
+                  LOGERROR('The Tx data doesn\'t have valid signatures.')
+            if not enoughSigs:
+                  LOGERROR('The Tx data doesn\'t have enough signatures.')
+         else:
+            finalTx = ustxObj.getBroadcastTxIfReady()
+            if finalTx:
+               newTxHash = finalTx.getHash()
+               LOGINFO('Tx %s may be broadcast - %s' % \
+                       (binary_to_hex(newTxHash), \
+                        binary_to_hex(finalTx.serialize())))
+               self.retStr = binary_to_hex(finalTx.serialize())
+               finalPyTx = PyTx().unserialize(hex_to_binary(self.retStr))
+               if TheBDM is None:
+                   LOGERROR('TheBDM is null')
+               if rpc_server is None:
+                   LOGERROR( 'rpc_server is null')
+               if rpc_server.NetworkingFactory is None:
+                   LOGERROR('rpc_server.NetworkingFactory is  null')
+
+               rpc_server.NetworkingFactory.sendTx(finalPyTx)
+
+            else:
+               LOGERROR('The Tx data isn\'t ready to be broadcast')
+      return "The Transaction data is successfully broadcast."
    ##################################
    # Take the ASCII representation of an unsigned Tx (i.e., the data that is
    # signed by Armory's offline Tx functionality) and returns an ASCII
@@ -2588,7 +2665,8 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
             # The signed Tx is valid.
             retDict['SignedTx'] = unsignedTx.serializeAscii()
 
-      return retDict
+      return retDict.get("SignedTx", "Error signing transaction. The correct"\
+            " was probably not used.")
 
 
    #############################################################################
