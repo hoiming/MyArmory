@@ -2437,7 +2437,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
    # works with a regular signed Tx and a signed lockbox Tx if there are already
    # enough signatures.
    @catchErrsForJSON
-   def jsonrpc_broadcastTransactionWithFile(self, txASCIIFile):
+   def jsonrpc_broadcasttransactionwithfile(self, txASCIIFile):
       """
       DESCRIPTION:
       Get a signed Tx from a file and get the raw hex data to broadcast.
@@ -2523,7 +2523,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
       return self.retStr
 
    @catchErrsForJSON
-   def jsonrpc_broadcastTransaction(self, txASCII):
+   def jsonrpc_broadcasttransaction(self, txASCII):
       """
       DESCRIPTION:
       Get a signed Tx from a file and get the raw hex data to broadcast.
@@ -2541,8 +2541,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
       allData = ''
       finalTx = None
       self.retStr = 'The transaction data cannot be broadcast'
-
-      allData = txASCII
+      allData = str(txASCII).replace("\\n", "\n")
 
       # Try to decipher the Tx and make sure it's actually signed.
       try:
@@ -2565,7 +2564,6 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
          LOGERROR('This transaction can\'t be read.')
          ustxObj = None
          ustxReadable = False
-
       # If we have a signed Tx object, let's make sure it's actually usable.
       if ustxObj:
          if not enoughSigs or not sigsValid or not ustxReadable:
@@ -2585,8 +2583,10 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
                LOGINFO('Tx %s may be broadcast - %s' % \
                        (binary_to_hex(newTxHash), \
                         binary_to_hex(finalTx.serialize())))
-               self.retStr = finalTx.getHashHex(BIGENDIAN)
-               finalPyTx = PyTx().unserialize(hex_to_binary(self.retStr))
+
+               #self.retStr = finalTx.getHashHex(BIGENDIAN)
+               #self.retStr = binary_to_hex(finalTx.serialize())
+               #finalPyTx = PyTx().unserialize(hex_to_binary(self.retStr))
                if TheBDM is None:
                    LOGERROR('TheBDM is null')
                if rpc_server is None:
@@ -2594,7 +2594,9 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
                if rpc_server.NetworkingFactory is None:
                    LOGERROR('rpc_server.NetworkingFactory is  null')
 
-               rpc_server.NetworkingFactory.sendTx(finalPyTx)
+               rpc_server.NetworkingFactory.sendTx(finalTx)
+               # Seems to work with BIGENDIAN
+               self.retStr = binary_to_hex(newTxHash, BIGENDIAN)
 
             else:
                LOGERROR('The Tx data isn\'t ready to be broadcast')
@@ -2620,7 +2622,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
       """
 
       retDict = {}
-
+      unsignedTxASCII = str(unsignedTxASCII).replace("\\n", "\n")
       # As a courtesy to people who use them, we'll strip quotation marks
       # from the beginning and/or end of the string.
       unsignedTxASCII = str(unsignedTxASCII)
@@ -2818,7 +2820,6 @@ for curJFunct in jFuncts:
 
       # Save the funct's dict in the master dict to be returned to the user.
       jsonFunctDict[functName] = functDoc
-
 
 ################################################################################
 class Armory_Daemon(object):
