@@ -1469,7 +1469,7 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
                         "time" :           blockTime,
                         "timereceived" :   blockTime 
                      }
-            final_tx_list.append(tx_info)
+            #final_tx_list.append(tx_info)
 
          for a160,val in recipVals:
             # Change outputs have already been removed
