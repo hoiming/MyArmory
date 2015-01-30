@@ -1397,6 +1397,10 @@ class Armory_Json_Rpc_Server(jsonrpc.JSONRPC):
 
          #cppHead = cppTx.getHeaderPtr()
          cppHead = TheBDM.getHeaderPtrForTx(cppTx)
+         # Ignoring error "Requested txref not on main chain (BH dupID is diff)"...
+         # For now.
+         if cppHead is None:
+             continue
          if not cppHead.isInitialized:
             LOGERROR('Header pointer is not available!')
 
